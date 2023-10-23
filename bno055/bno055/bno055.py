@@ -37,7 +37,9 @@ from bno055.params.NodeParameters import NodeParameters
 from bno055.sensor.SensorService import SensorService
 import rclpy
 from rclpy.node import Node
-
+from sensor_msgs.msg import Imu
+from geometry_msgs.msg import Quaternion
+from std_msgs.msg import String
 
 class Bno055Node(Node):
     """
@@ -54,6 +56,37 @@ class Bno055Node(Node):
     def __init__(self):
         # Initialize parent (ROS Node)
         super().__init__('bno055')
+        
+        self.imu_subscriber = self.create_subscription(
+            Imu,
+            '/bno055/imu',  # Change topic if using imu_raw
+            self.imu_callback,
+            10  # Adjust the queue size as needed
+        )
+        
+    def imu_callback(self, msg):
+        # Extract linear acceleration data from the IMU message
+        linear_acceleration = msg.linear_acceleration
+
+        # Implement the logic for logging events here
+        # Example: Log current velocity and orientation
+        # Ensure you have initialized self.linear_velocity as [0.0, 0.0, 0.0] earlier
+        dt = self.get_clock().now().to_msg().sec  # Calculate the time difference
+        self.linear_velocity[0] += linear_acceleration.x * dt
+        self.linear_velocity[1] += linear_acceleration.y * dt
+        self.linear_velocity[2] += linear_acceleration.z * dt
+        
+        orientation = msg.orientation
+        if orientation.w < 0.0:
+            self.get_logger().info("IMU flipped over!")
+        else:
+            self.get_logger().info("IMU is upright.")
+
+        max_acceleration = max(linear_acceleration.x, linear_acceleration.y, linear_acceleration.z)
+        if max_acceleration > 10.0:
+            self.get_logger().warning("Sudden rapid acceleration detected!")
+
+
 
     def setup(self):
         # Initialize ROS2 Node Parameters:
@@ -170,3 +203,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
